@@ -1,0 +1,958 @@
+<title>ZAP &amp; JMeter Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: lab console — top bar with track switch, lesson rail on the left, one lesson at a time on the right */
+:root{
+  --ground:#EEF2F5; --panel:#FFFFFF; --ink:#15202B; --muted:#56657A; --rule:#D5DDE5;
+  --sec:#C23149; --sec-soft:#FBE7EB;      /* ZAP track: security */
+  --perf:#127A86; --perf-soft:#E0F2F3;    /* JMeter track: performance */
+  --code-bg:#17212C; --code-ink:#DCE6EE; --code-dim:#8DA0B3;
+  --ok:#23824A; --ok-soft:#E2F3E8; --warn:#A86A00; --warn-soft:#FBF0D9;
+  --accent:var(--sec); --accent-soft:var(--sec-soft);
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --ground:#0E141A; --panel:#151D25; --ink:#E2E9EF; --muted:#93A3B4; --rule:#26323E;
+  --sec:#F06A80; --sec-soft:#3A1C24; --perf:#4CC2CF; --perf-soft:#123238;
+  --code-bg:#0A0F14; --code-ink:#DCE6EE; --code-dim:#7D90A3;
+  --ok:#5BC784; --ok-soft:#14301F; --warn:#E3A53A; --warn-soft:#33270F; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ground:#0E141A; --panel:#151D25; --ink:#E2E9EF; --muted:#93A3B4; --rule:#26323E;
+  --sec:#F06A80; --sec-soft:#3A1C24; --perf:#4CC2CF; --perf-soft:#123238;
+  --code-bg:#0A0F14; --code-ink:#DCE6EE; --code-dim:#7D90A3;
+  --ok:#5BC784; --ok-soft:#14301F; --warn:#E3A53A; --warn-soft:#33270F; color-scheme:dark;
+}
+body.t-jmeter{ --accent:var(--perf); --accent-soft:var(--perf-soft); }
+body.t-zap{ --accent:var(--sec); --accent-soft:var(--sec-soft); }
+
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.6;margin:0}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--panel);border-bottom:1px solid var(--rule)}
+.top-in{max-width:1240px;margin:0 auto;padding:12px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.brand{font-family:var(--f-display);font-weight:800;font-size:1.25rem;letter-spacing:-.01em;display:flex;align-items:center;gap:10px;margin-right:auto}
+.brand .dot{display:inline-flex;gap:3px}
+.brand .dot i{width:10px;height:10px;border-radius:2px;display:block}
+.brand .dot i:first-child{background:var(--sec)} .brand .dot i:last-child{background:var(--perf)}
+.tracks{display:flex;gap:4px;background:var(--ground);padding:4px;border-radius:8px;border:1px solid var(--rule)}
+.tracks button{font:600 .9rem var(--f-body);border:0;background:transparent;color:var(--muted);padding:7px 14px;border-radius:6px;cursor:pointer;display:flex;gap:8px;align-items:center}
+.tracks button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.tracks button .sw{width:8px;height:8px;border-radius:50%}
+.tracks button[data-track="zap"] .sw{background:var(--sec)} .tracks button[data-track="jmeter"] .sw{background:var(--perf)}
+
+.shell{max-width:1240px;margin:0 auto;padding-inline:16px;padding-block:24px 64px;display:grid;grid-template-columns:270px minmax(0,1fr);gap:32px;align-items:start}
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 76px);display:flex;flex-direction:column;gap:16px}
+.track-head{display:flex;flex-direction:column;gap:6px}
+.eyebrow{font:600 .72rem var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.track-head h2{font:800 1.5rem/1.15 var(--f-display);margin:0;text-wrap:balance}
+.track-head p{margin:0;color:var(--muted);font-size:.9rem}
+.meter{height:6px;background:var(--rule);border-radius:3px;overflow:hidden}
+.meter span{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+.meter-label{font:400 .78rem var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.lesson-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;border-left:2px solid var(--rule)}
+.lesson-list button{all:unset;box-sizing:border-box;width:100%;cursor:pointer;display:grid;grid-template-columns:28px 1fr 16px;gap:6px;align-items:baseline;padding:7px 10px;margin-left:-2px;border-left:2px solid transparent;font-size:.92rem;color:var(--muted)}
+.lesson-list button:hover{color:var(--ink)}
+.lesson-list button:focus-visible{outline:2px solid var(--accent)}
+.lesson-list button[aria-current="true"]{border-left-color:var(--accent);color:var(--ink);font-weight:600;background:var(--accent-soft)}
+.lesson-list .n{font:400 .75rem var(--f-mono);font-variant-numeric:tabular-nums}
+.lesson-list .chk{color:var(--ok);font-size:.85rem}
+
+main{min-width:0}
+.lesson{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:clamp(20px,4vw,40px)}
+.lesson>header{display:flex;flex-direction:column;gap:8px;padding-bottom:20px;border-bottom:1px solid var(--rule);margin-bottom:24px}
+.lesson h1{font:800 clamp(1.7rem,3.4vw,2.4rem)/1.1 var(--f-display);margin:0;letter-spacing:-.015em;text-wrap:balance}
+.lesson .lede{font-size:1.08rem;color:var(--muted);margin:0;max-width:62ch}
+.meta{display:flex;gap:14px;flex-wrap:wrap;font:400 .78rem var(--f-mono);color:var(--muted)}
+.body{max-width:68ch;display:flex;flex-direction:column;gap:14px}
+.body h3{font:700 1.15rem var(--f-display);margin:14px 0 0}
+.body p,.body ul,.body ol{margin:0}
+.body li{margin:4px 0}
+.body code{font-family:var(--f-mono);font-size:.86em;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
+.wide{max-width:none}
+
+.code{position:relative;background:var(--code-bg);color:var(--code-ink);border-radius:8px;font:400 .84rem/1.55 var(--f-mono);overflow:hidden}
+.code .bar{display:flex;justify-content:space-between;align-items:center;padding:6px 12px;border-bottom:1px solid rgba(255,255,255,.08);color:var(--code-dim);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase}
+.code pre{margin:0;padding:12px 14px;overflow-x:auto;white-space:pre}
+.code .c{color:var(--code-dim)}
+.copy{font:600 .72rem var(--f-mono);background:transparent;color:var(--code-ink);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:2px 8px;cursor:pointer}
+.copy:hover{border-color:var(--code-ink)}
+
+.note{border-radius:8px;padding:12px 14px;font-size:.95rem;display:grid;grid-template-columns:auto 1fr;gap:10px}
+.note b.tag{font:600 .7rem var(--f-mono);letter-spacing:.08em;text-transform:uppercase;padding-top:3px}
+.note.tip{background:var(--ok-soft)} .note.tip b.tag{color:var(--ok)}
+.note.warn{background:var(--warn-soft)} .note.warn b.tag{color:var(--warn)}
+
+.tbl{overflow-x:auto;border:1px solid var(--rule);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font:600 .74rem var(--f-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--muted);background:var(--ground)}
+tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+
+.pill{display:inline-block;font:600 .72rem var(--f-mono);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.r-high{background:#C23149;color:#fff}.r-med{background:#E07B24;color:#fff}.r-low{background:#D8B02A;color:#2A2100}.r-info{background:#3E77B8;color:#fff}
+
+/* Proxy flow diagram */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;overflow-x:auto}
+.flow .node{flex:1 1 140px;border:1.5px solid var(--rule);border-radius:8px;padding:12px;background:var(--ground);min-width:0}
+.flow .node.hl{border-color:var(--accent);background:var(--accent-soft)}
+.flow .node b{display:block;font:700 .95rem var(--f-display)}
+.flow .node small{color:var(--muted);font-size:.8rem}
+.flow .arrow{display:flex;align-items:center;justify-content:center;padding:0 8px;font:600 .75rem var(--f-mono);color:var(--muted)}
+
+/* JMeter tree */
+.tree{font:400 .88rem/1.9 var(--f-mono);background:var(--ground);border:1px solid var(--rule);border-radius:8px;padding:12px 16px;overflow-x:auto;white-space:nowrap}
+.tree .k{display:inline-block;font-size:.68rem;padding:0 6px;border-radius:3px;margin-left:8px;background:var(--accent-soft);color:var(--accent);font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+
+/* Order strip */
+.order{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:0;counter-reset:o}
+.order li{counter-increment:o;font-size:.85rem;background:var(--ground);border:1px solid var(--rule);border-radius:6px;padding:6px 10px;margin:0}
+.order li::before{content:counter(o) " ";font:600 .75rem var(--f-mono);color:var(--accent)}
+
+/* Tools */
+.tool{border:1.5px solid var(--accent);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:14px;background:var(--panel)}
+.tool h4{margin:0;font:700 1rem var(--f-display);display:flex;gap:10px;align-items:center}
+.tool h4 .eyebrow{font-size:.66rem}
+.fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font:600 .74rem var(--f-mono);color:var(--muted);letter-spacing:.03em}
+.field input,.field select{font:400 .95rem var(--f-body);padding:8px 10px;border:1px solid var(--rule);border-radius:6px;background:var(--ground);color:var(--ink);width:100%}
+.checks{display:flex;gap:16px;flex-wrap:wrap;font-size:.9rem}
+.checks label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.out{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.stat{background:var(--ground);border-radius:8px;padding:10px 12px}
+.stat .v{font:700 1.4rem var(--f-display);font-variant-numeric:tabular-nums}
+.stat .l{font:400 .74rem var(--f-mono);color:var(--muted)}
+
+/* Quiz */
+.q{border:1px solid var(--rule);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.q p.stem{font-weight:600;margin:0}
+.q .opts{display:flex;flex-direction:column;gap:6px}
+.q .opts button{text-align:left;font:400 .95rem var(--f-body);color:var(--ink);background:var(--ground);border:1px solid var(--rule);border-radius:6px;padding:9px 12px;cursor:pointer}
+.q .opts button:hover:not(:disabled){border-color:var(--accent)}
+.q .opts button.right{background:var(--ok-soft);border-color:var(--ok)}
+.q .opts button.wrong{background:var(--sec-soft);border-color:var(--sec)}
+.q .opts button:disabled{cursor:default}
+.q .why{font-size:.9rem;color:var(--muted);margin:0}
+.score{font:700 1.1rem var(--f-display)}
+
+.pager{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:28px;padding-top:20px;border-top:1px solid var(--rule)}
+.btn{font:600 .92rem var(--f-body);padding:9px 16px;border-radius:7px;border:1px solid var(--rule);background:var(--ground);color:var(--ink);cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.done{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.btn:disabled{opacity:.4;cursor:default}
+.pager .mid{display:flex;gap:8px;flex-wrap:wrap}
+
+.lesson-panel[hidden]{display:none}
+
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr;gap:20px}
+  .rail{position:static}
+  .lesson-list{flex-direction:row;overflow-x:auto;border-left:0;border-bottom:2px solid var(--rule);scrollbar-width:thin}
+  .lesson-list li{flex:0 0 auto}
+  .lesson-list button{grid-template-columns:auto auto auto;margin:0 0 -2px;border-left:0;border-bottom:2px solid transparent;white-space:nowrap}
+  .lesson-list button[aria-current="true"]{border-bottom-color:var(--accent)}
+  .flow{flex-direction:column}
+  .flow .arrow{padding:4px 0;transform:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><span class="dot"><i></i><i></i></span>ZAP &amp; JMeter Lab</div>
+    <div class="tracks" role="tablist" aria-label="Choose a track">
+      <button role="tab" data-track="zap" aria-selected="true" id="tab-zap"><span class="sw"></span>OWASP ZAP · Security</button>
+      <button role="tab" data-track="jmeter" aria-selected="false" id="tab-jmeter"><span class="sw"></span>JMeter · Performance</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="track-head">
+      <span class="eyebrow" id="trackEyebrow">Track A · Web security testing</span>
+      <h2 id="trackTitle">OWASP ZAP</h2>
+      <p id="trackDesc">Find vulnerabilities in web apps by putting a proxy between your browser and the target.</p>
+    </div>
+    <div>
+      <div class="meter"><span id="meterBar"></span></div>
+      <div class="meter-label" id="meterLabel">0 of 0 lessons complete</div>
+    </div>
+    <ol class="lesson-list" id="lessonList"></ol>
+  </aside>
+
+  <main id="main">
+
+<!-- ======================= ZAP TRACK ======================= -->
+<section class="lesson-panel" data-track="zap" data-title="What ZAP is" id="zap-1">
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Lesson 1 · Concepts</span>
+  <h1>What ZAP is and how it finds bugs</h1>
+  <p class="lede">ZAP (Zed Attack Proxy) is a free, open-source web application security scanner. It started as an OWASP flagship project, and since 2024 it is maintained by the original ZAP team with Checkmarx sponsorship. Many people still call it "OWASP ZAP".</p>
+  <div class="meta"><span>~8 min</span><span>Beginner</span></div>
+</header>
+<div class="body">
+  <p>ZAP is a <strong>man-in-the-middle proxy</strong>. Your browser sends traffic to ZAP, ZAP forwards it to the application, and every request and response is recorded on the way through. Once ZAP has seen the app, it can analyse that traffic and attack it.</p>
+  <div class="flow wide" aria-label="Traffic flow through ZAP">
+    <div class="node"><b>Browser</b><small>Firefox / Chrome launched by ZAP, or configured to use proxy localhost:8080</small></div>
+    <div class="arrow">→</div>
+    <div class="node hl"><b>ZAP proxy</b><small>Records, inspects, edits and replays every request</small></div>
+    <div class="arrow">→</div>
+    <div class="node"><b>Target web app</b><small>Only an app you own or have written permission to test</small></div>
+  </div>
+  <h3>The four things ZAP does</h3>
+  <ul>
+    <li><strong>Explore</strong> the app: through your manual browsing, the traditional Spider (follows links in HTML) and the AJAX Spider (drives a real browser for JavaScript-heavy apps).</li>
+    <li><strong>Passive scan</strong> every response it sees. Passive rules only read traffic, for example missing security headers or cookies without <code>HttpOnly</code>. Safe to run anywhere.</li>
+    <li><strong>Active scan</strong>: sends attack payloads (SQL injection, XSS, path traversal and more) to each parameter. This changes data and can break things.</li>
+    <li><strong>Report</strong> the alerts it raised, with risk, confidence, evidence and a fix.</li>
+  </ul>
+  <div class="note warn"><b class="tag">Legal</b><span>Active scanning a site without written permission is illegal in most countries. Practice on deliberately vulnerable apps such as OWASP Juice Shop or DVWA running on your own machine.</span></div>
+  <h3>Set up a safe practice target</h3>
+  <div class="code"><div class="bar"><span>shell · run Juice Shop locally</span><button class="copy">Copy</button></div><pre>docker run --rm -p 3000:3000 bkimminich/juice-shop
+<span class="c"># then open http://localhost:3000</span></pre></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="zap" data-title="Install &amp; modes" id="zap-2" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Lesson 2 · Setup</span>
+  <h1>Install ZAP and pick a mode</h1>
+  <p class="lede">ZAP runs on Windows, macOS and Linux. The installers bundle Java; the cross-platform package needs a recent Java (17 or later for current releases).</p>
+  <div class="meta"><span>~6 min</span><span>Beginner</span></div>
+</header>
+<div class="body">
+  <ol>
+    <li>Download from <a href="https://www.zaproxy.org/download/" target="_blank" rel="noopener">zaproxy.org/download</a> and install.</li>
+    <li>On first launch, ZAP asks whether to persist the session. Choose a session file name if you want to keep your results; otherwise pick "do not persist".</li>
+    <li>Open <strong>Tools → Options → Network → Server Certificates</strong> if you will proxy HTTPS from your own browser. Browsers launched from ZAP already trust its certificate.</li>
+  </ol>
+  <h3>The ZAP window</h3>
+  <div class="tbl"><table>
+    <tr><th>Area</th><th>What lives there</th></tr>
+    <tr><td>Sites tree (left)</td><td>Every host, folder and URL ZAP has seen</td></tr>
+    <tr><td>Workspace (top right)</td><td>Quick Start, Request and Response tabs</td></tr>
+    <tr><td>Information panes (bottom)</td><td>History, Search, Alerts, Output, Spider, Active Scan progress</td></tr>
+  </table></div>
+  <h3>Modes control what ZAP is allowed to do</h3>
+  <div class="tbl"><table>
+    <tr><th>Mode</th><th>Behaviour</th><th>Use it when</th></tr>
+    <tr><td><strong>Safe</strong></td><td>No potentially harmful actions at all</td><td>Browsing a site you have no permission to attack</td></tr>
+    <tr><td><strong>Protected</strong></td><td>Harmful actions only on URLs inside a context's scope</td><td>Recommended default for real work</td></tr>
+    <tr><td><strong>Standard</strong></td><td>You can do anything you choose</td><td>Default on install</td></tr>
+    <tr><td><strong>ATTACK</strong></td><td>New in-scope nodes are actively scanned as they are found</td><td>Lab targets only</td></tr>
+  </table></div>
+  <div class="note tip"><b class="tag">Tip</b><span>Switch the mode from the drop-down in the top-left toolbar. Protected mode plus a well-defined context is the simplest way to avoid scanning a third-party CDN or payment provider by accident.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="zap" data-title="Automated scan" id="zap-3" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Lesson 3 · First scan</span>
+  <h1>Run your first automated scan</h1>
+  <p class="lede">Quick Start's Automated Scan spiders the target, waits for passive scanning, then runs an active scan. It is the fastest way to see what ZAP can find.</p>
+  <div class="meta"><span>~10 min</span><span>Beginner</span></div>
+</header>
+<div class="body">
+  <ol>
+    <li>Click <strong>Quick Start → Automated Scan</strong>.</li>
+    <li>Enter the URL to attack, for example <code>http://localhost:3000</code>.</li>
+    <li>Keep <strong>Use traditional spider</strong> on. Turn on <strong>Use ajax spider</strong> for single-page apps (Juice Shop is one), and pick a browser.</li>
+    <li>Press <strong>Attack</strong>. Watch the Spider and Active Scan tabs fill up.</li>
+    <li>Open the <strong>Alerts</strong> tab and click an alert to see the request, the evidence and the suggested solution.</li>
+  </ol>
+  <h3>Reading an alert</h3>
+  <div class="tbl"><table>
+    <tr><th>Risk</th><th>Meaning</th><th>Typical example</th></tr>
+    <tr><td><span class="pill r-high">High</span></td><td>Likely exploitable, serious impact</td><td>SQL Injection, Remote OS Command Injection</td></tr>
+    <tr><td><span class="pill r-med">Medium</span></td><td>Exploitable with conditions</td><td>Missing anti-CSRF tokens, Content Security Policy not set</td></tr>
+    <tr><td><span class="pill r-low">Low</span></td><td>Weakness that helps an attacker</td><td>Cookie without SameSite attribute</td></tr>
+    <tr><td><span class="pill r-info">Informational</span></td><td>Not a vulnerability by itself</td><td>Modern web application detected</td></tr>
+  </table></div>
+  <p><strong>Confidence</strong> (Confirmed, High, Medium, Low, False Positive) is separate from risk. A High-risk, Low-confidence alert needs manual verification before you report it. Right-click an alert and choose <strong>Mark as False Positive</strong> once you have ruled it out.</p>
+  <div class="note warn"><b class="tag">Limit</b><span>The automated scan does not log in. Anything behind a login page is invisible to it until you set up authentication (Lesson 5).</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="zap" data-title="Manual explore" id="zap-4" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Lesson 4 · Proxying</span>
+  <h1>Explore manually and intercept requests</h1>
+  <p class="lede">Spiders miss multi-step forms, file uploads and business flows. Clicking through the app yourself, with ZAP recording, gives the best coverage.</p>
+  <div class="meta"><span>~12 min</span><span>Intermediate</span></div>
+</header>
+<div class="body">
+  <h3>Manual Explore</h3>
+  <ol>
+    <li><strong>Quick Start → Manual Explore</strong>, enter the URL, choose Firefox or Chrome, click <strong>Launch Browser</strong>.</li>
+    <li>The browser is pre-configured to use ZAP and to trust its certificate. Optionally enable the <strong>HUD</strong> to see alerts overlaid on the page.</li>
+    <li>Log in, fill every form, use every feature. Each request appears in History and the Sites tree.</li>
+  </ol>
+  <h3>Breakpoints: pause and edit traffic</h3>
+  <p>Press the green breakpoint button in the toolbar (or <code>Ctrl+B</code>) to break on all requests. The next request stops in ZAP; change any value, such as a price, a user ID or a role, then press <strong>Submit and step</strong> or <strong>Continue</strong>.</p>
+  <h3>Resend and the Fuzzer</h3>
+  <ul>
+    <li><strong>Right-click → Open/Resend with Request Editor</strong> replays a request with your edits. Good for testing one idea, such as changing <code>userId=12</code> to <code>userId=13</code> (an IDOR check).</li>
+    <li><strong>Right-click → Attack → Fuzz</strong>: highlight a value, add payloads (built-in lists or a file), and ZAP sends one request per payload. Sort results by status code or response size to find the odd one out.</li>
+  </ul>
+  <div class="note tip"><b class="tag">Tip</b><span>Using your own browser instead? Point its proxy at <code>localhost:8080</code> and import ZAP's root CA certificate (Options → Network → Server Certificates → Save) so HTTPS sites load without warnings.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="zap" data-title="Contexts &amp; auth" id="zap-5" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Lesson 5 · Scope</span>
+  <h1>Contexts, scope and authenticated scanning</h1>
+  <p class="lede">A context is a named set of URLs (regex include and exclude patterns) with its own authentication, session handling and users. Most real scans need one.</p>
+  <div class="meta"><span>~15 min</span><span>Intermediate</span></div>
+</header>
+<div class="body">
+  <h3>Create a context</h3>
+  <ol>
+    <li>In the Sites tree, right-click the host → <strong>Include in Context → New Context</strong>. ZAP adds a pattern such as <code>http://localhost:3000.*</code>.</li>
+    <li>Add <strong>exclude</strong> patterns for anything dangerous to hit repeatedly: <code>.*logout.*</code>, <code>.*delete.*</code>, password change pages.</li>
+    <li>Turn on <strong>Show only URLs in Scope</strong> in History and Alerts to hide noise.</li>
+  </ol>
+  <h3>Teach ZAP to log in</h3>
+  <div class="tbl"><table>
+    <tr><th>Method</th><th>Fits</th></tr>
+    <tr><td>Browser-based</td><td>Most modern apps. ZAP drives a real browser to fill the login form.</td></tr>
+    <tr><td>Form-based</td><td>Classic POST login forms. Right-click the login request → Flag as Context → Form-based Auth Login Request.</td></tr>
+    <tr><td>JSON-based</td><td>APIs that log in with a JSON body.</td></tr>
+    <tr><td>HTTP/NTLM</td><td>Basic, Digest or NTLM authentication.</td></tr>
+    <tr><td>Script-based</td><td>Anything unusual, such as multi-step or token exchange flows.</td></tr>
+  </table></div>
+  <p>Then, in the context's <strong>Users</strong> panel, add a test user with credentials, and set a <strong>logged-in indicator</strong> (a regex that only appears when signed in, such as <code>\QLogout\E</code>) or a <strong>logged-out indicator</strong>. ZAP uses these to detect that it has been logged out and to log in again.</p>
+  <p>Finally, run the Spider and Active Scan with that context and user selected. Scan coverage usually jumps once authenticated pages are reachable.</p>
+  <div class="note tip"><b class="tag">Tip</b><span>For apps using bearer tokens, the Authentication Helper and "Auth Header" environment variables (<code>ZAP_AUTH_HEADER_VALUE</code>) let ZAP add a header to every request without scripting.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="zap" data-title="Scan policies" id="zap-6" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Lesson 6 · Tuning</span>
+  <h1>Passive vs active scans and scan policies</h1>
+  <p class="lede">An active scan with every rule at maximum strength can run for hours. Scan policies let you choose which rules run and how hard they push.</p>
+  <div class="meta"><span>~10 min</span><span>Intermediate</span></div>
+</header>
+<div class="body">
+  <div class="tbl"><table>
+    <tr><th></th><th>Passive scan</th><th>Active scan</th></tr>
+    <tr><td>What it does</td><td>Inspects traffic ZAP already saw</td><td>Sends new attack requests</td></tr>
+    <tr><td>Risk to target</td><td>None</td><td>Can create, change or delete data</td></tr>
+    <tr><td>When it runs</td><td>Automatically, in the background</td><td>Only when you start it</td></tr>
+    <tr><td>Finds</td><td>Headers, cookies, info leaks, outdated libraries</td><td>SQLi, XSS, path traversal, command injection, SSRF</td></tr>
+  </table></div>
+  <h3>Build a policy</h3>
+  <ol>
+    <li><strong>Analyse → Scan Policy Manager → Add</strong>.</li>
+    <li>Set a default <strong>Threshold</strong> (how sure a rule must be before alerting: Low, Medium, High) and <strong>Strength</strong> (how many requests a rule may send: Low, Medium, High, Insane).</li>
+    <li>Turn off categories that do not apply, for example server-side rules for databases you do not use.</li>
+    <li>Select the policy in the Active Scan dialog (<strong>right-click a node → Attack → Active Scan</strong>).</li>
+  </ol>
+  <div class="note tip"><b class="tag">Tip</b><span>Install extra rules from the <strong>Marketplace</strong> (the three-box icon). "Beta" and "Alpha" active and passive scan rule add-ons add many checks that are not in the default release set.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="zap" data-title="Reports" id="zap-7" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Lesson 7 · Output</span>
+  <h1>Generate a report people will read</h1>
+  <p class="lede">A report should tell developers what to fix first. Clean out false positives and out-of-scope noise before you generate it.</p>
+  <div class="meta"><span>~6 min</span><span>Beginner</span></div>
+</header>
+<div class="body">
+  <ol>
+    <li><strong>Report → Generate Report</strong>.</li>
+    <li>Pick a template: <code>traditional-html</code>, <code>modern</code>, <code>risk-confidence-html</code>, <code>traditional-pdf</code>, <code>traditional-json</code>, <code>traditional-xml</code>, or <code>sarif-json</code> for code-scanning tools.</li>
+    <li>On the Filter tab, choose which risks and confidences to include, and limit to your context.</li>
+  </ol>
+  <h3>What a good finding includes</h3>
+  <ul>
+    <li>The alert name and its CWE / WASC ID, which ZAP fills in.</li>
+    <li>The exact URL, parameter and attack string, plus the evidence ZAP matched.</li>
+    <li>Your own manual verification notes: did you reproduce it?</li>
+    <li>The fix, in the developer's language and framework.</li>
+  </ul>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="zap" data-title="Automation &amp; CI" id="zap-8" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Lesson 8 · DevSecOps</span>
+  <h1>Automate ZAP with Docker and CI</h1>
+  <p class="lede">The packaged Docker scans let you run ZAP on every build without opening the desktop app. The Automation Framework gives full control with one YAML file.</p>
+  <div class="meta"><span>~15 min</span><span>Advanced</span></div>
+</header>
+<div class="body">
+  <div class="tbl"><table>
+    <tr><th>Script</th><th>What it does</th><th>Safe for production?</th></tr>
+    <tr><td><code>zap-baseline.py</code></td><td>Spider for 1 minute, passive scan only</td><td>Yes, no attacks</td></tr>
+    <tr><td><code>zap-full-scan.py</code></td><td>Spider, optional AJAX spider, full active scan</td><td>No, test environments only</td></tr>
+    <tr><td><code>zap-api-scan.py</code></td><td>Imports an OpenAPI, SOAP or GraphQL definition and actively scans the API</td><td>No, test environments only</td></tr>
+  </table></div>
+  <div class="tool wide" id="cmdTool">
+    <h4><span class="eyebrow">Try it</span>Docker command builder</h4>
+    <div class="fields">
+      <div class="field"><label for="zt">Target URL</label><input id="zt" value="http://host.docker.internal:3000"></div>
+      <div class="field"><label for="zs">Scan type</label><select id="zs"><option value="baseline">Baseline (passive)</option><option value="full">Full (active)</option><option value="api">API scan</option></select></div>
+      <div class="field" id="zfWrap" hidden><label for="zf">API format</label><select id="zf"><option>openapi</option><option>soap</option><option>graphql</option></select></div>
+      <div class="field"><label for="zr">Report file</label><input id="zr" value="zap-report.html"></div>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="zj"> AJAX spider (<code>-j</code>)</label>
+      <label><input type="checkbox" id="za"> Alpha passive rules (<code>-a</code>)</label>
+      <label><input type="checkbox" id="zI" checked> Don't fail on warnings (<code>-I</code>)</label>
+    </div>
+    <div class="code"><div class="bar"><span>shell</span><button class="copy">Copy</button></div><pre id="zcmd"></pre></div>
+  </div>
+  <p>Exit codes make these scripts CI-friendly: <code>0</code> no issues, <code>1</code> at least one FAIL, <code>2</code> at least one WARN, <code>3</code> any other failure. Generate a rules file with <code>-g gen.conf</code>, then change rules to <code>IGNORE</code>, <code>WARN</code> or <code>FAIL</code> and pass it back with <code>-c gen.conf</code>.</p>
+  <h3>Automation Framework plan</h3>
+  <div class="code"><div class="bar"><span>yaml · zap-plan.yaml</span><button class="copy">Copy</button></div><pre>env:
+  contexts:
+    - name: "juice-shop"
+      urls: ["http://localhost:3000"]
+      includePaths: ["http://localhost:3000.*"]
+      excludePaths: [".*logout.*"]
+  parameters:
+    failOnError: true
+    progressToStdout: true
+jobs:
+  - type: passiveScan-config
+    parameters:
+      maxAlertsPerRule: 10
+  - type: spider
+    parameters:
+      maxDuration: 2
+  - type: spiderAjax
+    parameters:
+      maxDuration: 3
+  - type: passiveScan-wait
+  - type: activeScan
+    parameters:
+      maxScanDurationInMins: 15
+  - type: report
+    parameters:
+      template: traditional-html
+      reportDir: /zap/wrk
+      reportFile: zap-report</pre></div>
+  <div class="code"><div class="bar"><span>shell · run the plan</span><button class="copy">Copy</button></div><pre>./zap.sh -cmd -autorun zap-plan.yaml
+<span class="c"># or in Docker</span>
+docker run --rm -v "$(pwd)":/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \
+  zap.sh -cmd -autorun /zap/wrk/zap-plan.yaml</pre></div>
+  <div class="note tip"><b class="tag">Tip</b><span>In the desktop app, <strong>Tools → Automation Framework</strong> lets you build and test a plan visually, then save the YAML for CI. GitHub users can also use the official <code>zaproxy/action-baseline</code> and <code>zaproxy/action-full-scan</code> actions.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="zap" data-title="Quiz" id="zap-quiz" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">ZAP · Check your knowledge</span>
+  <h1>ZAP quiz</h1>
+  <p class="lede">Six questions. Pick an answer to see the explanation.</p>
+</header>
+<div class="body" data-quiz="zap"></div>
+</article>
+</section>
+
+<!-- ======================= JMETER TRACK ======================= -->
+<section class="lesson-panel" data-track="jmeter" data-title="What JMeter is" id="jmeter-1" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Lesson 1 · Concepts</span>
+  <h1>What Apache JMeter is and what it measures</h1>
+  <p class="lede">JMeter is a free, Java-based tool from the Apache Software Foundation for load and performance testing. It simulates many users sending requests and records how fast and how reliably the system responds.</p>
+  <div class="meta"><span>~8 min</span><span>Beginner</span></div>
+</header>
+<div class="body">
+  <p>JMeter works at the <strong>protocol level</strong>. It sends HTTP requests and reads responses, but it is not a browser: it does not run JavaScript or render pages. That is why one machine can simulate hundreds of users.</p>
+  <h3>Kinds of performance test</h3>
+  <div class="tbl"><table>
+    <tr><th>Test</th><th>Question it answers</th><th>Shape</th></tr>
+    <tr><td>Load</td><td>Does it meet targets at expected traffic?</td><td>Ramp to normal peak, hold</td></tr>
+    <tr><td>Stress</td><td>Where does it break, and how?</td><td>Keep increasing until errors climb</td></tr>
+    <tr><td>Spike</td><td>Does it survive a sudden burst?</td><td>Jump from low to very high instantly</td></tr>
+    <tr><td>Soak / endurance</td><td>Does it degrade over hours (memory leaks, connection pools)?</td><td>Moderate load for 4–24 h</td></tr>
+  </table></div>
+  <h3>Protocols it can test</h3>
+  <p>HTTP/HTTPS (web and REST), SOAP, JDBC databases, FTP, LDAP, JMS message queues, SMTP/POP3/IMAP, TCP and Java code. More come from the JMeter Plugins Manager.</p>
+  <h3>The numbers you will report</h3>
+  <ul>
+    <li><strong>Response time</strong>: average, median, and the 90th/95th/99th percentiles. Percentiles matter more than the average.</li>
+    <li><strong>Throughput</strong>: requests per second the system handled.</li>
+    <li><strong>Error %</strong>: share of failed samples.</li>
+    <li><strong>Concurrent users</strong> (threads) at which those numbers were measured.</li>
+  </ul>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="jmeter" data-title="Install &amp; run" id="jmeter-2" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Lesson 2 · Setup</span>
+  <h1>Install JMeter and run it the right way</h1>
+  <p class="lede">Build tests in the GUI. Run real load from the command line. The GUI consumes memory and CPU and will distort your results.</p>
+  <div class="meta"><span>~8 min</span><span>Beginner</span></div>
+</header>
+<div class="body">
+  <ol>
+    <li>Install a Java JDK (version 8 or later; 17 or 21 is a good choice). Check with <code>java -version</code>.</li>
+    <li>Download the binary zip from <a href="https://jmeter.apache.org/download_jmeter.cgi" target="_blank" rel="noopener">jmeter.apache.org</a> and unzip it.</li>
+    <li>Start the GUI: <code>bin/jmeter.bat</code> on Windows or <code>bin/jmeter</code> on macOS and Linux.</li>
+    <li>Install the <strong>Plugins Manager</strong> by dropping its jar into <code>lib/ext</code> and restarting. It adds Options → Plugins Manager.</li>
+  </ol>
+  <h3>Run a test in non-GUI (CLI) mode</h3>
+  <div class="code"><div class="bar"><span>shell</span><button class="copy">Copy</button></div><pre>jmeter -n -t checkout.jmx -l results.jtl -e -o report/
+<span class="c"># -n  non-GUI mode
+# -t  test plan file
+# -l  raw results file (CSV .jtl)
+# -e  generate HTML dashboard at the end
+# -o  empty output folder for the dashboard</span></pre></div>
+  <h3>Pass settings in from outside</h3>
+  <div class="code"><div class="bar"><span>shell</span><button class="copy">Copy</button></div><pre>jmeter -n -t checkout.jmx -Jthreads=200 -Jrampup=120 -l run2.jtl
+<span class="c"># inside the plan, read them with ${__P(threads,10)} and ${__P(rampup,30)}</span></pre></div>
+  <div class="note tip"><b class="tag">Heap</b><span>For bigger tests, raise the heap before starting: <code>export HEAP="-Xms1g -Xmx4g"</code> (Linux/macOS) or <code>set HEAP=-Xms1g -Xmx4g</code> (Windows).</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="jmeter" data-title="Test plan anatomy" id="jmeter-3" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Lesson 3 · Structure</span>
+  <h1>Anatomy of a test plan</h1>
+  <p class="lede">A test plan is a tree saved as a <code>.jmx</code> file. Where you place an element in the tree decides which requests it affects.</p>
+  <div class="meta"><span>~12 min</span><span>Beginner</span></div>
+</header>
+<div class="body">
+  <div class="tree wide">
+Test Plan<span class="k">root</span><br>
+├─ HTTP Request Defaults<span class="k">config</span><br>
+├─ HTTP Cookie Manager<span class="k">config</span><br>
+├─ Thread Group  (50 users, ramp-up 60 s)<span class="k">threads</span><br>
+│&nbsp;&nbsp;├─ Uniform Random Timer<span class="k">timer</span><br>
+│&nbsp;&nbsp;├─ GET /home<span class="k">sampler</span><br>
+│&nbsp;&nbsp;├─ POST /login<span class="k">sampler</span><br>
+│&nbsp;&nbsp;│&nbsp;&nbsp;├─ JSON Extractor → token<span class="k">post-processor</span><br>
+│&nbsp;&nbsp;│&nbsp;&nbsp;└─ Response Assertion (200)<span class="k">assertion</span><br>
+│&nbsp;&nbsp;└─ GET /orders<span class="k">sampler</span><br>
+└─ Summary Report<span class="k">listener</span>
+  </div>
+  <div class="tbl"><table>
+    <tr><th>Element</th><th>Job</th></tr>
+    <tr><td>Thread Group</td><td>The virtual users: how many, how fast they start, how long they run</td></tr>
+    <tr><td>Sampler</td><td>Sends one request (HTTP Request, JDBC Request, etc.)</td></tr>
+    <tr><td>Logic Controller</td><td>Controls flow: Loop, If, While, Transaction, Once Only, Random</td></tr>
+    <tr><td>Config Element</td><td>Shared settings and data: defaults, headers, cookies, CSV data</td></tr>
+    <tr><td>Timer</td><td>Adds think time between requests</td></tr>
+    <tr><td>Pre / Post-Processor</td><td>Runs before / after a sampler, e.g. extracting a token</td></tr>
+    <tr><td>Assertion</td><td>Marks a sample failed if the response is wrong</td></tr>
+    <tr><td>Listener</td><td>Collects and shows results</td></tr>
+  </table></div>
+  <h3>Execution order for each sampler</h3>
+  <ol class="order">
+    <li>Config elements</li><li>Pre-processors</li><li>Timers</li><li>Sampler</li><li>Post-processors</li><li>Assertions</li><li>Listeners</li>
+  </ol>
+  <p><strong>Scoping rule:</strong> an element applies to samplers at its own level and below. A timer placed directly under the Thread Group delays every sampler in it; a timer placed under one sampler delays only that sampler.</p>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="jmeter" data-title="Thread groups" id="jmeter-4" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Lesson 4 · Load model</span>
+  <h1>Thread groups and load math</h1>
+  <p class="lede">Threads are not requests per second. Throughput depends on how long each request takes plus the think time between them.</p>
+  <div class="meta"><span>~12 min</span><span>Intermediate</span></div>
+</header>
+<div class="body">
+  <div class="tbl"><table>
+    <tr><th>Setting</th><th>Meaning</th></tr>
+    <tr><td>Number of Threads (users)</td><td>Concurrent virtual users</td></tr>
+    <tr><td>Ramp-up period (s)</td><td>Time to start all threads. 100 threads over 50 s = 2 new users per second</td></tr>
+    <tr><td>Loop Count / Infinite</td><td>How many times each user repeats the flow</td></tr>
+    <tr><td>Specify thread lifetime → Duration</td><td>Stop after N seconds, regardless of loops</td></tr>
+  </table></div>
+  <p>The steady-state rule of thumb (Little's Law): <strong>throughput ≈ users ÷ (response time + think time)</strong>.</p>
+  <div class="tool wide">
+    <h4><span class="eyebrow">Try it</span>Load calculator</h4>
+    <div class="fields">
+      <div class="field"><label for="lu">Threads</label><input id="lu" type="number" min="1" value="100"></div>
+      <div class="field"><label for="lr">Ramp-up (s)</label><input id="lr" type="number" min="0" value="60"></div>
+      <div class="field"><label for="lrt">Avg response (ms)</label><input id="lrt" type="number" min="1" value="400"></div>
+      <div class="field"><label for="ltt">Think time (ms)</label><input id="ltt" type="number" min="0" value="1600"></div>
+      <div class="field"><label for="ld">Duration (s)</label><input id="ld" type="number" min="1" value="600"></div>
+    </div>
+    <div class="out">
+      <div class="stat"><div class="v" id="o1">–</div><div class="l">req/s at steady state</div></div>
+      <div class="stat"><div class="v" id="o2">–</div><div class="l">users started per second</div></div>
+      <div class="stat"><div class="v" id="o3">–</div><div class="l">approx. total requests</div></div>
+      <div class="stat"><div class="v" id="o4">–</div><div class="l">requests per minute</div></div>
+    </div>
+  </div>
+  <h3>Other thread groups</h3>
+  <ul>
+    <li><strong>setUp / tearDown Thread Group</strong>: run before and after the main test, e.g. to create and delete test data.</li>
+    <li><strong>Concurrency Thread Group / Ultimate Thread Group</strong> (plugins): step and hold patterns, useful for stress tests.</li>
+    <li><strong>Open Model Thread Group</strong> (built in since 5.5): schedule arrivals like <code>rate(10/sec) random_arrivals(5 min)</code> instead of fixed users.</li>
+  </ul>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="jmeter" data-title="HTTP requests" id="jmeter-5" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Lesson 5 · Hands-on</span>
+  <h1>Build an HTTP test from scratch</h1>
+  <p class="lede">A small REST flow: open the home page, log in, list orders. Five elements cover most web tests.</p>
+  <div class="meta"><span>~15 min</span><span>Beginner</span></div>
+</header>
+<div class="body">
+  <ol>
+    <li><strong>Right-click Test Plan → Add → Threads → Thread Group</strong>. Set 10 threads, 10 s ramp-up, loop 5.</li>
+    <li><strong>Add → Config Element → HTTP Request Defaults</strong>: protocol <code>https</code>, server <code>api.example.test</code>. Every sampler inherits these.</li>
+    <li><strong>Add → Config Element → HTTP Header Manager</strong>: <code>Content-Type: application/json</code>.</li>
+    <li><strong>Add → Config Element → HTTP Cookie Manager</strong> so each user keeps its own session cookies.</li>
+    <li><strong>Add → Sampler → HTTP Request</strong> three times: <code>GET /</code>, <code>POST /api/login</code>, <code>GET /api/orders</code>.</li>
+    <li><strong>Add → Listener → View Results Tree</strong> and <strong>Summary Report</strong>. Press the green Run button.</li>
+  </ol>
+  <h3>Login request body</h3>
+  <div class="code"><div class="bar"><span>json · Body Data tab</span><button class="copy">Copy</button></div><pre>{
+  "username": "${user}",
+  "password": "${pass}"
+}</pre></div>
+  <h3>Recording instead of building by hand</h3>
+  <p><strong>Templates → Recording</strong> creates a plan with the <strong>HTTP(S) Test Script Recorder</strong> on port 8888. Point your browser's proxy at it, import <code>ApacheJMeterTemporaryRootCA.crt</code> from the <code>bin</code> folder, press Start, and use the site. JMeter writes samplers for each request. Clean out analytics and static files afterwards.</p>
+  <div class="note warn"><b class="tag">Careful</b><span>View Results Tree stores every response in memory. Use it while debugging with one or two users, then disable it before a real load run.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="jmeter" data-title="Data &amp; correlation" id="jmeter-6" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Lesson 6 · Realism</span>
+  <h1>Test data, variables and correlation</h1>
+  <p class="lede">100 users logging in as the same account do not behave like 100 real users. Feed in different data, and capture dynamic values the server sends back.</p>
+  <div class="meta"><span>~15 min</span><span>Intermediate</span></div>
+</header>
+<div class="body">
+  <h3>CSV Data Set Config</h3>
+  <div class="code"><div class="bar"><span>csv · users.csv</span><button class="copy">Copy</button></div><pre>user,pass
+alice,Secret#1
+bob,Secret#2
+carol,Secret#3</pre></div>
+  <p>Add <strong>Config Element → CSV Data Set Config</strong>, set Filename <code>users.csv</code>, leave Variable Names empty to use the header row, and set <strong>Recycle on EOF</strong> and <strong>Sharing mode</strong> as needed. Each thread reads the next line and <code>${user}</code> / <code>${pass}</code> change per iteration.</p>
+  <h3>Useful functions</h3>
+  <div class="tbl"><table>
+    <tr><th>Function</th><th>Returns</th></tr>
+    <tr><td><code>${__Random(1,500)}</code></td><td>Random integer in a range</td></tr>
+    <tr><td><code>${__UUID()}</code></td><td>Random UUID</td></tr>
+    <tr><td><code>${__time(yyyy-MM-dd)}</code></td><td>Current date in a format</td></tr>
+    <tr><td><code>${__threadNum}</code></td><td>Number of the current thread</td></tr>
+    <tr><td><code>${__P(name,default)}</code></td><td>Property passed with <code>-Jname=value</code></td></tr>
+  </table></div>
+  <h3>Correlation: capture, then reuse</h3>
+  <p>Login returns <code>{"token":"eyJhbGci..."}</code>. Later requests need it. Add a <strong>JSON Extractor</strong> under the login sampler:</p>
+  <div class="tbl"><table>
+    <tr><th>Field</th><th>Value</th></tr>
+    <tr><td>Names of created variables</td><td><code>token</code></td></tr>
+    <tr><td>JSON Path expressions</td><td><code>$.token</code></td></tr>
+    <tr><td>Default values</td><td><code>TOKEN_NOT_FOUND</code></td></tr>
+  </table></div>
+  <p>Then add a Header Manager to later requests with <code>Authorization: Bearer ${token}</code>. For HTML responses (CSRF tokens, view state), use the <strong>Regular Expression Extractor</strong> or <strong>Boundary Extractor</strong>, e.g. regex <code>name="csrf" value="(.+?)"</code> with template <code>$1$</code>.</p>
+  <div class="note tip"><b class="tag">Debug</b><span>Add a <strong>Debug Sampler</strong> and look at it in View Results Tree to see every variable's current value. A default value like <code>TOKEN_NOT_FOUND</code> showing up in a request tells you the extractor failed.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="jmeter" data-title="Assertions &amp; timers" id="jmeter-7" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Lesson 7 · Accuracy</span>
+  <h1>Assertions and timers</h1>
+  <p class="lede">A server that answers "200 OK" with an error page is not a pass. A user who never pauses is not a real user. Assertions and timers fix both.</p>
+  <div class="meta"><span>~10 min</span><span>Intermediate</span></div>
+</header>
+<div class="body">
+  <h3>Assertions</h3>
+  <div class="tbl"><table>
+    <tr><th>Assertion</th><th>Checks</th></tr>
+    <tr><td>Response Assertion</td><td>Status code, text or regex in the body or headers</td></tr>
+    <tr><td>JSON Assertion</td><td>A JSON path exists or equals a value, e.g. <code>$.status</code> = <code>ok</code></td></tr>
+    <tr><td>Duration Assertion</td><td>Response took no longer than N ms (an SLA check)</td></tr>
+    <tr><td>Size Assertion</td><td>Response size in bytes</td></tr>
+  </table></div>
+  <h3>Timers</h3>
+  <div class="tbl"><table>
+    <tr><th>Timer</th><th>Use for</th></tr>
+    <tr><td>Constant Timer</td><td>Fixed pause, e.g. 2000 ms</td></tr>
+    <tr><td>Uniform Random Timer</td><td>Pause = constant offset + random range. Realistic think time</td></tr>
+    <tr><td>Gaussian Random Timer</td><td>Pauses clustered around an average</td></tr>
+    <tr><td>Constant Throughput Timer</td><td>Hold a target rate in samples per <em>minute</em></td></tr>
+    <tr><td>Precise Throughput Timer</td><td>Target rate with Poisson-style arrivals</td></tr>
+  </table></div>
+  <div class="note warn"><b class="tag">Note</b><span>Timer delay is not included in the response time JMeter reports, but it does lower throughput. Wrap a flow in a <strong>Transaction Controller</strong> to measure the whole flow as one transaction.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="jmeter" data-title="Reports &amp; scaling" id="jmeter-8" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Lesson 8 · Analysis</span>
+  <h1>Read the results and scale out</h1>
+  <p class="lede">The HTML dashboard turns a <code>.jtl</code> file into charts and tables. Learn which numbers to quote, and how to add more load generators when one machine is not enough.</p>
+  <div class="meta"><span>~14 min</span><span>Advanced</span></div>
+</header>
+<div class="body">
+  <h3>Dashboard from an existing results file</h3>
+  <div class="code"><div class="bar"><span>shell</span><button class="copy">Copy</button></div><pre>jmeter -g results.jtl -o report/</pre></div>
+  <h3>What to look at</h3>
+  <div class="tbl"><table>
+    <tr><th>Metric</th><th>Healthy sign</th><th>Warning sign</th></tr>
+    <tr><td>APDEX</td><td>Close to 1.0</td><td>Below 0.7</td></tr>
+    <tr><td>95th / 99th percentile</td><td>Within your SLA</td><td>Far above the median: a long tail</td></tr>
+    <tr><td>Throughput over time</td><td>Rises with users, then flat</td><td>Flat or falling while users rise: saturation</td></tr>
+    <tr><td>Error %</td><td>Near 0</td><td>Grows with load</td></tr>
+    <tr><td>Response time vs threads</td><td>Flat</td><td>Knee in the curve: the capacity limit</td></tr>
+  </table></div>
+  <p>Monitor the servers too (CPU, memory, DB connections, GC pauses) and the load generator itself. If the JMeter machine runs above about 80% CPU, your numbers describe JMeter, not the app.</p>
+  <h3>Distributed testing</h3>
+  <ol>
+    <li>Install the same JMeter and Java version on every machine. Copy CSV files to each.</li>
+    <li>Start <code>jmeter-server</code> on each worker. Recent versions need RMI SSL keys (<code>create-rmi-keystore</code>) or <code>server.rmi.ssl.disable=true</code> on a trusted network.</li>
+    <li>List workers in <code>remote_hosts</code> in <code>jmeter.properties</code>, or pass them with <code>-R</code>.</li>
+  </ol>
+  <div class="code"><div class="bar"><span>shell · controller</span><button class="copy">Copy</button></div><pre>jmeter -n -t checkout.jmx -R 10.0.0.11,10.0.0.12 -l dist.jtl -e -o report/
+<span class="c"># each worker runs the full thread count: 2 workers x 100 threads = 200 users</span></pre></div>
+  <div class="note tip"><b class="tag">CI</b><span>Run the CLI command in Jenkins, GitLab CI or GitHub Actions, then fail the build on thresholds with a Duration Assertion or by parsing <code>statistics.json</code> in the report folder.</span></div>
+</div>
+</article>
+</section>
+
+<section class="lesson-panel" data-track="jmeter" data-title="Quiz" id="jmeter-quiz" hidden>
+<article class="lesson">
+<header>
+  <span class="eyebrow">JMeter · Check your knowledge</span>
+  <h1>JMeter quiz</h1>
+  <p class="lede">Six questions. Pick an answer to see the explanation.</p>
+</header>
+<div class="body" data-quiz="jmeter"></div>
+</article>
+</section>
+
+    <nav class="pager" aria-label="Lesson navigation">
+      <button class="btn" id="prevBtn">← Previous</button>
+      <div class="mid"><button class="btn" id="doneBtn">Mark lesson complete</button></div>
+      <button class="btn primary" id="nextBtn">Next →</button>
+    </nav>
+  </main>
+</div>
+
+<script>
+(function(){
+  var TRACKS = {
+    zap:{eyebrow:"Track A · Web security testing",title:"OWASP ZAP",desc:"Find vulnerabilities in web apps by putting a proxy between your browser and the target."},
+    jmeter:{eyebrow:"Track B · Performance testing",title:"Apache JMeter",desc:"Simulate hundreds of users and measure response time, throughput and errors."}
+  };
+  var QUIZ = {
+    zap:[
+      {q:"Which ZAP scan type only reads traffic and never sends attack requests?",o:["Active scan","Passive scan","Fuzzer","AJAX Spider"],a:1,w:"Passive scan rules inspect requests and responses ZAP has already seen, so they are safe to run against any site you browse."},
+      {q:"You must avoid attacking anything outside your target app. Which mode helps most?",o:["Standard","ATTACK","Protected","Safe"],a:2,w:"Protected mode only allows potentially harmful actions on URLs inside a context's scope."},
+      {q:"Your target is a single-page JavaScript app. Which explorer should you add?",o:["Traditional Spider only","AJAX Spider","Breakpoints","Passive scan"],a:1,w:"The AJAX Spider drives a real browser, so it discovers routes that only exist after JavaScript runs."},
+      {q:"Which packaged Docker script is safe to run against production?",o:["zap-full-scan.py","zap-api-scan.py","zap-baseline.py","None of them"],a:2,w:"The baseline scan spiders briefly and runs passive rules only. Full and API scans actively attack."},
+      {q:"What does a logged-in indicator do in a context?",o:["Stores the password","Tells ZAP how to recognise it is still authenticated","Excludes the logout URL","Encrypts session cookies"],a:1,w:"ZAP matches the regex against responses to decide whether it is still logged in, and re-authenticates if not."},
+      {q:"An alert shows High risk, Low confidence. What should you do?",o:["Report it immediately","Ignore it","Verify it manually before reporting","Delete the context"],a:2,w:"Confidence tells you how sure ZAP is. Low confidence means you should reproduce it before calling it a vulnerability."}
+    ],
+    jmeter:[
+      {q:"Why should load tests run in non-GUI mode?",o:["The GUI cannot send HTTPS","The GUI uses resources and distorts results","CLI mode has more samplers","The GUI cannot save .jmx files"],a:1,w:"The GUI and its listeners consume CPU and memory on the load generator. Build in the GUI, run with jmeter -n."},
+      {q:"100 threads with a 50 second ramp-up start users at what rate?",o:["50 per second","0.5 per second","2 per second","100 per second"],a:2,w:"100 threads ÷ 50 s = 2 new threads per second until all are running."},
+      {q:"Login returns a JSON token needed by later requests. Which element captures it?",o:["Response Assertion","JSON Extractor","Constant Timer","HTTP Request Defaults"],a:1,w:"A JSON Extractor post-processor saves $.token into a variable such as ${token} for later samplers."},
+      {q:"In what order do these run for a sampler?",o:["Timer → Pre-processor → Sampler → Assertion","Pre-processor → Timer → Sampler → Post-processor → Assertion","Sampler → Timer → Assertion","Assertion → Sampler → Listener"],a:1,w:"Config, pre-processors, timers, sampler, post-processors, assertions, then listeners."},
+      {q:"50 users, 300 ms response time, 1700 ms think time. Approximate throughput?",o:["25 req/s","50 req/s","167 req/s","5 req/s"],a:0,w:"50 ÷ (0.3 + 1.7) s = 25 requests per second."},
+      {q:"Which response time figure best describes what slow users experience?",o:["Minimum","Average","95th or 99th percentile","Median"],a:2,w:"High percentiles show the tail. An average can look fine while 5% of users wait many seconds."}
+    ]
+  };
+
+  var KEY = "zapjm-progress-v1";
+  var done = {};
+  try { done = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e) { done = {}; }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(done)); } catch(e){} }
+
+  var panels = Array.prototype.slice.call(document.querySelectorAll(".lesson-panel"));
+  var track = "zap", current = "zap-1";
+
+  function trackPanels(t){ return panels.filter(function(p){ return p.dataset.track === t; }); }
+
+  function renderNav(){
+    var list = document.getElementById("lessonList");
+    list.innerHTML = "";
+    var tp = trackPanels(track);
+    tp.forEach(function(p, i){
+      var li = document.createElement("li");
+      var b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-current", p.id === current ? "true" : "false");
+      var isQuiz = p.id.indexOf("quiz") > -1;
+      b.innerHTML = '<span class="n">' + (isQuiz ? "?" : String(i+1).padStart(2,"0")) + '</span><span>' + p.dataset.title + '</span><span class="chk">' + (done[p.id] ? "✓" : "") + '</span>';
+      b.addEventListener("click", function(){ go(p.id); });
+      li.appendChild(b); list.appendChild(li);
+    });
+    var lessons = tp.filter(function(p){ return p.id.indexOf("quiz") < 0; });
+    var n = lessons.filter(function(p){ return done[p.id]; }).length;
+    document.getElementById("meterBar").style.width = (n / lessons.length * 100) + "%";
+    document.getElementById("meterLabel").textContent = n + " of " + lessons.length + " lessons complete";
+  }
+
+  function go(id, noScroll){
+    var p = document.getElementById(id);
+    if (!p) return;
+    current = id; track = p.dataset.track;
+    document.body.classList.toggle("t-jmeter", track === "jmeter");
+    document.body.classList.toggle("t-zap", track === "zap");
+    panels.forEach(function(x){ x.hidden = x.id !== id; });
+    document.querySelectorAll(".tracks button").forEach(function(b){ b.setAttribute("aria-selected", b.dataset.track === track ? "true" : "false"); });
+    var T = TRACKS[track];
+    document.getElementById("trackEyebrow").textContent = T.eyebrow;
+    document.getElementById("trackTitle").textContent = T.title;
+    document.getElementById("trackDesc").textContent = T.desc;
+    var tp = trackPanels(track), idx = tp.indexOf(p);
+    document.getElementById("prevBtn").disabled = idx === 0;
+    var next = document.getElementById("nextBtn");
+    next.disabled = idx === tp.length - 1;
+    next.textContent = (idx === tp.length - 2) ? "Take the quiz →" : "Next →";
+    var db = document.getElementById("doneBtn");
+    var isQuiz = id.indexOf("quiz") > -1;
+    db.hidden = isQuiz;
+    db.textContent = done[id] ? "✓ Completed" : "Mark lesson complete";
+    db.classList.toggle("done", !!done[id]);
+    renderNav();
+    try { history.replaceState(null, "", "#" + id); } catch(e){}
+    try { localStorage.setItem(KEY + "-last", id); } catch(e){}
+    if (!noScroll) window.scrollTo({top:0, behavior:"auto"});
+  }
+
+  document.querySelectorAll(".tracks button").forEach(function(b){
+    b.addEventListener("click", function(){
+      var t = b.dataset.track;
+      var tp = trackPanels(t);
+      var first = tp.filter(function(p){ return !done[p.id] && p.id.indexOf("quiz") < 0; })[0] || tp[0];
+      go(first.id);
+    });
+  });
+  document.getElementById("prevBtn").addEventListener("click", function(){ var tp = trackPanels(track); var i = tp.indexOf(document.getElementById(current)); if (i > 0) go(tp[i-1].id); });
+  document.getElementById("nextBtn").addEventListener("click", function(){ var tp = trackPanels(track); var i = tp.indexOf(document.getElementById(current)); if (i < tp.length-1) go(tp[i+1].id); });
+  document.getElementById("doneBtn").addEventListener("click", function(){
+    done[current] = !done[current]; save(); go(current, true);
+  });
+
+  // Copy buttons
+  document.querySelectorAll(".copy").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var pre = btn.closest(".code").querySelector("pre");
+      var text = pre.innerText;
+      function ok(){ btn.textContent = "Copied"; setTimeout(function(){ btn.textContent = "Copy"; }, 1400); }
+      function fallback(){ var r = document.createRange(); r.selectNodeContents(pre); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Selected"; setTimeout(function(){ btn.textContent = "Copy"; }, 1400); }
+      try { navigator.clipboard.writeText(text).then(ok, fallback); } catch(e){ fallback(); }
+    });
+  });
+
+  // ZAP command builder
+  function buildCmd(){
+    var t = document.getElementById("zt").value.trim() || "https://example.test";
+    var s = document.getElementById("zs").value;
+    var f = document.getElementById("zf").value;
+    var r = document.getElementById("zr").value.trim() || "zap-report.html";
+    var j = document.getElementById("zj"), a = document.getElementById("za").checked, I = document.getElementById("zI").checked;
+    document.getElementById("zfWrap").hidden = s !== "api";
+    j.disabled = s === "api"; if (s === "api") j.checked = false;
+    var script = {baseline:"zap-baseline.py", full:"zap-full-scan.py", api:"zap-api-scan.py"}[s];
+    var parts = [script, "-t " + t];
+    if (s === "api") parts.push("-f " + f);
+    if (j.checked) parts.push("-j");
+    if (a) parts.push("-a");
+    if (I) parts.push("-I");
+    parts.push("-r " + r);
+    document.getElementById("zcmd").textContent =
+      'docker run --rm -v "$(pwd)":/zap/wrk/:rw -t ghcr.io/zaproxy/zaproxy:stable \\\n  ' + parts.join(" ");
+  }
+  ["zt","zs","zf","zr","zj","za","zI"].forEach(function(id){
+    var el = document.getElementById(id); el.addEventListener("input", buildCmd); el.addEventListener("change", buildCmd);
+  });
+  buildCmd();
+
+  // Load calculator
+  function fmt(n){ if (!isFinite(n)) return "–"; return n >= 100 ? Math.round(n).toLocaleString() : n.toFixed(1); }
+  function calc(){
+    var u = +document.getElementById("lu").value || 0, r = +document.getElementById("lr").value || 0,
+        rt = +document.getElementById("lrt").value || 0, tt = +document.getElementById("ltt").value || 0,
+        d = +document.getElementById("ld").value || 0;
+    var cycle = (rt + tt) / 1000;
+    var tps = cycle > 0 ? u / cycle : NaN;
+    var startRate = r > 0 ? u / r : u;
+    var effective = Math.max(0, d - Math.min(r, d) / 2);
+    document.getElementById("o1").textContent = fmt(tps);
+    document.getElementById("o2").textContent = r > 0 ? fmt(startRate) : "all at once";
+    document.getElementById("o3").textContent = fmt(tps * effective);
+    document.getElementById("o4").textContent = fmt(tps * 60);
+  }
+  ["lu","lr","lrt","ltt","ld"].forEach(function(id){ document.getElementById(id).addEventListener("input", calc); });
+  calc();
+
+  // Quizzes
+  document.querySelectorAll("[data-quiz]").forEach(function(box){
+    var t = box.dataset.quiz, qs = QUIZ[t], answered = 0, right = 0;
+    var score = document.createElement("p"); score.className = "score";
+    function upd(){ score.textContent = "Score: " + right + " / " + qs.length + (answered === qs.length ? (right === qs.length ? " · Perfect" : " · Review the lessons for any you missed") : ""); }
+    qs.forEach(function(item, qi){
+      var q = document.createElement("div"); q.className = "q";
+      q.innerHTML = '<p class="stem">' + (qi+1) + '. ' + item.q + '</p><div class="opts"></div><p class="why" hidden></p>';
+      var opts = q.querySelector(".opts"), why = q.querySelector(".why");
+      item.o.forEach(function(txt, oi){
+        var b = document.createElement("button"); b.type = "button"; b.textContent = txt;
+        b.addEventListener("click", function(){
+          opts.querySelectorAll("button").forEach(function(x, xi){ x.disabled = true; if (xi === item.a) x.classList.add("right"); });
+          if (oi !== item.a) b.classList.add("wrong"); else right++;
+          answered++; why.hidden = false; why.textContent = (oi === item.a ? "Correct. " : "Not quite. ") + item.w; upd();
+        });
+        opts.appendChild(b);
+      });
+      box.appendChild(q);
+    });
+    upd(); box.appendChild(score);
+  });
+
+  var start = (location.hash || "").slice(1);
+  if (!document.getElementById(start)) { try { start = localStorage.getItem(KEY + "-last") || "zap-1"; } catch(e){ start = "zap-1"; } }
+  if (!document.getElementById(start)) start = "zap-1";
+  go(start, true);
+})();
+</script>
